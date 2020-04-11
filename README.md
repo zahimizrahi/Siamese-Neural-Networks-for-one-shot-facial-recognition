@@ -1,0 +1,2 @@
+# Siamese-Neural-Networks-for-one-shot-facial-recognition
+My work will be based on the paper 'Siamese Neural Networks for One-shot Image Recognition' [Koch, Zemel &amp; Salakhutdinov, 2016] . My goal is to successfully execute a one-shot learning task for previously unseen objects. Given two facial images of previously unseen persons, My network will have to successfully determine whether they are the same person. 
