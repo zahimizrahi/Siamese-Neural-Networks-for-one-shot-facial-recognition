@@ -1,7 +1,6 @@
 import shutil
 import os
 import IPython.display as display
-import numpy as np
 import tensorflow as tf
 import pathlib
 
@@ -15,10 +14,16 @@ class DataProcessor():
         :param print_imgs:
         """
         self.data_path = data_path
-        self.label_file = label_file
         self.verbose = verbose
+        self.label_paths = []
 
     def load_data(self, count_print_imgs=3):
+
+        """
+        before we begin the training, we need to load the dataset and prepare it.
+        we use it: https://www.tensorflow.org/tutorials/load_data/images
+        :return:
+        """
         full_path = pathlib.Path(self.data_path)
         data_paths = list(full_path.glob('*'))
         data_paths = [str(path) for path in data_paths if os.path.isfile(path)]
@@ -44,5 +49,8 @@ class DataProcessor():
                     left_path = os.path.join(relative_path, l[0] + "_" + l[1].zfill(4) + '.jpg')
                     right = l[0] + '_' + l[2].zfill(4) if len(l) == 3 else l[2] + '_' + l[3].zfill(4)
                     right_path = os.path.join(relative_path, right + '.jpg')
-                    list_of_paths.append((left_path, right_path))
+                    list_of_paths.append((left_path, right_path, int(len(l) == 3)))
         return list_of_paths
+
+
+
