@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from string import ascii_lowercase, ascii_uppercase
 import itertools
-from tensorflow.keras import backend as BE
+from tensorflow.keras import backend as K
 import tensorflow as tf
 import IPython.display as display
 
@@ -175,22 +175,22 @@ def split_data_by_letters(labels, letters):
 # -----------------------------------------------------------
 
 
-def abs_distance(tensors, K=BE):
+def abs_distance(tensors, K=K):
     """
     calculates the absolute distance between two tensor
     :param tensors: 2 tensors
     :return: the absolute distance
     """
-    return BE.abs(tensors[0] - tensors[1])
+    return K.abs(tensors[0] - tensors[1])
 
 
-def l2_distance(tensors):
+def l2_distance(tensors, K=K):
     """
     calculates euclidiean distance
     :param tensors: 2 tensors
     :return: the euclidean distance
     """
-    return BE.sqrt(BE.sum(BE.square(abs_distance(tensors)), axis=1, keepdims=True))
+    return K.sqrt(K.sum(K.square(abs_distance(tensors)), axis=1, keepdims=True))
 
 
 def l2_distance_shape(shapes):
@@ -207,7 +207,7 @@ def distance_acc(y_true, y_pred, th=0.5):
     :param th: th of the distance to be classified as 0 or 1
     :return:
     """
-    return BE.mean(BE.equal(y_true, BE.cast(y_pred < th, y_true.dtype)))
+    return K.mean(K.equal(y_true, K.cast(y_pred < th, y_true.dtype)))
 
 
 # -----------------------------------------------------------

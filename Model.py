@@ -85,8 +85,6 @@ class SiameseModel:
         if model_path is not None:
             self.model = load_model(model_path)
 
-        # TODO: implement distance
-
         # define the model
         model = Sequential()
 
@@ -121,28 +119,57 @@ class SiameseModel:
 
         self.optimizer_name = optimizer
 
-        # define the layers of the network
-        for i in range(num_layers - 1):
-            model.add(Conv2D(
-                filters=(filter_size * (2 ** i)),
-                kernel_size=kernel_sizes[i],
-                activation='relu',
-                input_shape=input_shape,
-                kernel_initializer=kernel_init,
-                kernel_regularizer=kernel_reg
-            )
-            )
-            model.add(MaxPooling2D())
 
+        # First layer
+
+        model.add(Conv2D(
+            filters=filter_size,
+            kernel_size=kernel_sizes[0],
+            activation='relu',
+            input_shape=input_shape,
+            kernel_initializer=kernel_init,
+            kernel_regularizer=kernel_reg
+        )
+        )
+        model.add(MaxPooling2D())
+
+
+        # Second Layer
+        model.add(Conv2D(
+            filters=filter_size*2,
+            kernel_size=kernel_sizes[1],
+            activation='relu',
+            kernel_initializer=kernel_init,
+            kernel_regularizer=kernel_reg,
+            bias_initializer=bias_init
+        )
+        )
+        model.add(MaxPooling2D())
+
+        # Third Layer
+        model.add(Conv2D(
+            filters=filter_size * 4,
+            kernel_size=kernel_sizes[2],
+            activation='relu',
+            kernel_initializer=kernel_init,
+            kernel_regularizer=kernel_reg,
+            bias_initializer=bias_init
+        )
+        )
+        model.add(MaxPooling2D())
+
+        # Fourth Layer
         model.add(Conv2D(
             filters=(filter_size * 8),
             kernel_size=kernel_sizes[3],
             activation='relu',
-            input_shape=input_shape,
             kernel_initializer=initialize_weights,
-            kernel_regularizer=kernel_reg
+            kernel_regularizer=kernel_reg,
+            bias_initializer=bias_init
         ))
 
+
+         # Dense Layer
         model.add(Flatten())
 
         model.add(Dense(
