@@ -119,9 +119,7 @@ class SiameseModel:
 
         self.optimizer_name = optimizer
 
-
         # First layer
-
         model.add(Conv2D(
             filters=filter_size,
             kernel_size=kernel_sizes[0],
