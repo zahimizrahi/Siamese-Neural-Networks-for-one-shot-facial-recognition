@@ -3,9 +3,11 @@ import os
 import IPython.display as display
 import tensorflow as tf
 import pathlib
+import glob
+import numpy as np
 
 
-class DataProcessor():
+class DataProcessor:
     def __init__(self, data_path, label_file, verbose=True):
         """
         Constructor of DataProcessor.
@@ -14,6 +16,7 @@ class DataProcessor():
         :param print_imgs:
         """
         self.data_path = data_path
+        self.label_file = label_file
         self.verbose = verbose
         self.label_paths = []
 
@@ -24,8 +27,8 @@ class DataProcessor():
         we use it: https://www.tensorflow.org/tutorials/load_data/images
         :return:
         """
-        full_path = pathlib.Path(self.data_path)
-        data_paths = list(full_path.glob('*'))
+        full_path = os.path.abspath(self.data_path)
+        data_paths = list(glob.glob(f'{full_path}/*'))
         data_paths = [str(path) for path in data_paths if os.path.isfile(path)]
         if self.verbose:
             print("{} Image paths were loaded!".format(len(data_paths)))
@@ -40,7 +43,7 @@ class DataProcessor():
             print()
             print('#########################')
 
-        relative_path = os.path.join('/', os.path.commonprefix(data_paths))
+        relative_path = os.path.join('/', *data_paths[0].split('/')[:-1])
         list_of_paths = list()
         with open(self.label_file) as label_file:
             for l in label_file:
