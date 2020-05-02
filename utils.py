@@ -255,7 +255,7 @@ def load_images_as_tensor_with_label(paths, label, norm=None, _resize=None):
     """
     left_img = load_image_as_tensor(paths[0], norm=norm, _resize=_resize)
     right_img = load_image_as_tensor(paths[1], norm=norm, _resize=_resize)
-    return left_img, right_img, label
+    return (left_img, right_img), label
 
 
 # -----------------------------------------------------------
@@ -302,7 +302,7 @@ def prepare_tensor_dataset(tensor_data, batch_size, buffer_size):
     return tensor_data
 
 
-def init_tensor_data(tensor_data, images_labels_path, norm=255.0, _resize=[256, 256], batch_size=1, buffer_size=None,
+def init_tensor_data(tensor_data, images_labels_path, norm=None, _resize=None, batch_size=1, buffer_size=None,
                      verbose=True):
     """
     initializing the tensor dataset

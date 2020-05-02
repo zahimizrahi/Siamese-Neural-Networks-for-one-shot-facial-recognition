@@ -3,7 +3,6 @@ import numpy as np
 import time
 import datetime
 from tensorflow.keras.layers import Conv2D, Input, MaxPooling2D, Lambda, Flatten, Dense
-# from tensorflow.keras.layers import BatchNormalization
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras import backend as K
@@ -190,7 +189,7 @@ class SiameseModel:
         # prediction = distance_func
 
         siamese_model = Model(inputs=[left_image, right_image], outputs=prediction)
-        siamese_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+        siamese_model.compile(optimizer=self.optimizer, loss=loss, metrics=metrics)
         # siamese_model.summary()
 
         if self.pretrained_weights:
