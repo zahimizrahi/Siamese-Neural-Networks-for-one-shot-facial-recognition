@@ -1,6 +1,10 @@
 import shutil
 import os
-
+import numpy as np
+import pandas as pd
+from string import ascii_lowercase, ascii_uppercase
+import itertools
+import IPython.display as display
 TRAIN_FILEPATH = 'pairsDevTrain.txt'
 TEST_FILEPATH = 'pairsDevTest.txt'
 SOURCE_PATH = 'lfw2/lfw2'
@@ -77,3 +81,106 @@ def prepare_data(src_path=SOURCE_PATH, train_path=TRAIN_DST_PATH,
     _move_dirs(src_path, test_path, test_names, verbose=verbose)
     _flatten_dirs(src_path, verbose=verbose)
     shutil.move(src_path, unused_path)
+
+
+def get_image_name(path):
+    return path.split('/')[-1].split('.')[0]
+
+
+def print_data_statistics(label_paths, data_name='train', label_name=['Same', 'Different']):
+    """
+    print statistics about about the labels of the given path
+    :param label_paths: the path of the dataset
+    :param data_name: the name of the dataset
+    :param label_name: kind of labels.
+    :return:
+    """
+    print('Examples for {} corpus structure:'.format(data_name))
+    print('############################')
+    print('View:')
+    print(label_paths[:3])
+    print('############################')
+    print('Corpus size: {}'.format(len(label_paths)))
+    print('Number of classes: {}'.format(len(label_name)))
+    labels = np.array([label for _, _, label in label_paths])
+    label_row_list = []
+    for index, name in enumerate(label_name):
+        name = name
+        size = len(labels[labels==index])/len(label_paths)
+        percentage = f'{size*100:.2f}%'
+        label_row_list.append((name, len(labels[labels==index]), len(label_paths), percentage))
+    df = pd.DataFrame(label_row_list, columns=['Class', 'Number in Class', 'Total', 'Percentage'])
+    print(df)
+
+
+def print_data_statistics(label_paths, data_name='train', label_name=['Same', 'Different']):
+    print('Examples for {} corpus structure:'.format(data_name))
+    print('############################')
+    print('View:')
+    print(label_paths[:3])
+    print('############################')
+    print('Corpus size: {}'.format(len(label_paths)))
+    print('Number of classes: {}'.format(len(label_name)))
+    labels = np.array([label for _, _, label in label_paths])
+    label_row_list = []
+    for index, name in enumerate(label_name):
+        name = name
+        size = len(labels[labels == index]) / len(label_paths)
+        percentage = f'{size * 100:.2f}%'
+        label_row_list.append((name, len(labels[labels == index]), len(label_paths), percentage))
+    df = pd.DataFrame(label_row_list, columns=['Class', 'Number in Class', 'Total', 'Percentage'])
+    print(df)
+
+
+def get_image_name(path):
+    return path.split('/')[-1].split('.')[0]
+
+
+def get_histogram_of_letters(people_names, num_letters=1):
+    combination = list(ascii_uppercase)
+    lower = ascii_lowercase
+    if num_letters > 1:
+        for i in range(1, num_letters):
+            combination = [x + y for x, y in itertools.product(combination, lower)]
+    hist = dict()
+    for elem in combination:
+        hist[elem] = sum(p.startswith(elem) for p in people_names)
+    return hist
+
+
+def subset_sum(numbers, desired_length, target, delta, partial=[], result=[]):
+    s = sum(partial)
+
+    # check if the partial sum is equals to target
+    if s in range(target - delta, target + delta) and len(partial) == desired_length:
+        result.append(partial)
+    if s >= target + delta:
+        return  # if we reach the number why bother to continue
+
+    for i in range(len(numbers)):
+        n = numbers[i]
+        remaining = numbers[i + 1:]
+        subset_sum(remaining, desired_length, target, delta, partial + [n])
+    return result
+
+
+def split_data_by_letters(labels, letters):
+    """
+    :param labels:
+    :param letters:
+    :return:
+    """
+    train = []
+    val = []
+    for paths in labels:
+        left = get_image_name(paths[0])
+        train_append = True
+        for letter in letters:
+            if left.startswith(letter):
+                train_append = False
+                break;
+        if train_append:
+            train.append(paths)
+        else:
+            val.append(paths)
+    return train, val
