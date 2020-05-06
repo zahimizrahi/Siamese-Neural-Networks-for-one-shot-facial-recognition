@@ -1,22 +1,21 @@
-import time
 import numpy as np
 import time
 import datetime
 from tensorflow.keras.layers import Conv2D, Input, MaxPooling2D, Lambda, Flatten, Dense
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 from tensorflow.keras.metrics import Precision, Recall
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ModelCheckpoint
 from tensorboard.plugins.hparams import api as hyper
 from tensorflow.random import set_seed
 from numpy.random import seed
+from  distanceFunc  import abs_distance
+import LFWDataLoader
 from skimage.transform import resize
 from skimage import io
 import matplotlib.pyplot as plt
-from utils import get_image_name, init_tensor_data, abs_distance
-
+from utils import get_image_name
 
 def initialize_bias(shape, name=None, dtype=None):
     """
@@ -108,6 +107,7 @@ class SiameseModel:
         self.filter_size = filter_size
         self.units = units
         self.lr = lr
+        self._LFWDataLoader = LFWDataLoader()
 
         if optimizer is None or optimizer == 'adam':
             self.optimizer = Adam(lr=lr)
@@ -125,7 +125,8 @@ class SiameseModel:
             activation='relu',
             input_shape=input_shape,
             kernel_initializer=kernel_init,
-            kernel_regularizer=kernel_reg
+            kernel_regularizer=kernel_reg,
+            name='Conv1'
         )
         )
         model.add(MaxPooling2D())
@@ -138,7 +139,8 @@ class SiameseModel:
             activation='relu',
             kernel_initializer=kernel_init,
             kernel_regularizer=kernel_reg,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Conv2'
         )
         )
         model.add(MaxPooling2D())
@@ -150,7 +152,8 @@ class SiameseModel:
             activation='relu',
             kernel_initializer=kernel_init,
             kernel_regularizer=kernel_reg,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Conv3'
         )
         )
         model.add(MaxPooling2D())
@@ -162,9 +165,9 @@ class SiameseModel:
             activation='relu',
             kernel_initializer=initialize_weights,
             kernel_regularizer=kernel_reg,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Conv4'
         ))
-
 
          # Dense Layer
         model.add(Flatten())
@@ -174,7 +177,8 @@ class SiameseModel:
             activation=activation_predict,
             kernel_initializer=kernel_init_dense,
             kernel_regularizer=kernel_reg_dense,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Dense1'
         )
         )
 
@@ -226,9 +230,9 @@ class SiameseModel:
         print(f'Steps per epoch: {steps_per_epoch}')
         print(f'Validation Steps:{validation_steps}')
 
-        train_data = init_tensor_data(train_data, images_labels_path=train_paths_labels, norm=norm, _resize=_resize,
+        train_data = self._LFWDataLoader.init_tensor_data(train_data, images_labels_path=train_paths_labels, norm=norm, _resize=_resize,
                                       batch_size=batch_size, verbose=verbose)
-        validation_data = init_tensor_data(validation_data, images_labels_path=val_paths_labels, norm=norm,
+        validation_data = self._LFWDataLoader.init_tensor_data(validation_data, images_labels_path=val_paths_labels, norm=norm,
                                            _resize=_resize, batch_size=batch_size, verbose=verbose)
         if self.pretrained_weights is None:
             if callbacks is None:
@@ -258,14 +262,14 @@ class SiameseModel:
         return table, train_time
 
     def evaluate(self, image_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], verbose=True):
-        data = init_tensor_data(data, images_labels_path=image_labels_path, norm=norm, _resize=_resize, batch_size=1)
+        data = self._LFWDataLoader.init_tensor_data(data, images_labels_path=image_labels_path, norm=norm, _resize=_resize, batch_size=1)
         if steps is None:
             steps = len(image_labels_path)
         return self.model.evaluate(data, steps=steps, verbose=True)
 
     def predict(self, images_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], images_to_print=0,
                 verbose=True):
-        data = init_tensor_data(data, images_labels_path=images_labels_path, norm=norm, _resize=_resize, batch_size=1)
+        data = self._LFWDataLoader.init_tensor_data(data, images_labels_path=images_labels_path, norm=norm, _resize=_resize, batch_size=1)
         if steps is None:
             steps = len(images_labels_path)
         preds = np.squeeze(self.model.predict(data, steps=steps, verbose=verbose))
