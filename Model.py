@@ -107,7 +107,6 @@ class SiameseModel:
         self.filter_size = filter_size
         self.units = units
         self.lr = lr
-        self._LFWDataLoader = LFWDataLoader()
 
         if optimizer is None or optimizer == 'adam':
             self.optimizer = Adam(lr=lr)
@@ -230,10 +229,8 @@ class SiameseModel:
         print(f'Steps per epoch: {steps_per_epoch}')
         print(f'Validation Steps:{validation_steps}')
 
-        train_data = self._LFWDataLoader.init_tensor_data(train_data, images_labels_path=train_paths_labels, norm=norm, _resize=_resize,
-                                      batch_size=batch_size, verbose=verbose)
-        validation_data = self._LFWDataLoader.init_tensor_data(validation_data, images_labels_path=val_paths_labels, norm=norm,
-                                           _resize=_resize, batch_size=batch_size, verbose=verbose)
+        train_data = LFWDataLoader.init_tensor_data(train_data, images_labels_path=train_paths_labels, norm=norm, _resize=_resize,batch_size=batch_size, verbose=verbose)
+        validation_data = LFWDataLoader.init_tensor_data(validation_data, images_labels_path=val_paths_labels, norm=norm,_resize=_resize, batch_size=batch_size, verbose=verbose)
         if self.pretrained_weights is None:
             if callbacks is None:
                 callbacks = []
@@ -242,8 +239,8 @@ class SiameseModel:
                 log_dir=log_paths,
                 histogram_freq=tensorboard_hist_freq,
             )
-            early_stop = EarlyStopping(patience=patience, verbose=verbose)
-            mc = ModelCheckpoint(f'{log_name}.h5', verbose=0, save_best_only=True, save_weights_only=True)
+            early_stop = EarlyStopping(patience=patience, verbose=0,monitor='val_loss',min_delta=0,restore_best_weights=True)
+            mc = ModelCheckpoint(f'{log_name}.h5', verbose=0, save_best_only=True)
 
             callbacks.append(tb_callback)
             callbacks.append(early_stop)
@@ -251,25 +248,24 @@ class SiameseModel:
 
             if hparam is not None:
                 callbacks.append(hyper.KerasCallback(log_paths, hparam))
-
-            self.model.fit(train_data, epochs=epochs, verbose=verbose, callbacks=callbacks,
-                           validation_data=validation_data, steps_per_epoch=steps_per_epoch,
+            history = self.model.fit(train_data, epochs=epochs, verbose=verbose, callbacks=callbacks,\
+                           validation_data=validation_data, steps_per_epoch=steps_per_epoch,\
                            validation_steps=validation_steps)
 
             # model.save_weights(f'{log_name}.h5')
         train_time = time.time() - start_time
         print(f'############## {train_time:.2f} seconds! ##############')
-        return table, train_time
+        return table, train_time,history
 
-    def evaluate(self, image_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], verbose=True):
-        data = self._LFWDataLoader.init_tensor_data(data, images_labels_path=image_labels_path, norm=norm, _resize=_resize, batch_size=1)
+    def evaluate(self, image_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], verbose=True, batch_size=1):
+        data = LFWDataLoader.init_tensor_data(data, images_labels_path=image_labels_path, norm=norm, _resize=_resize, batch_size=1)
         if steps is None:
             steps = len(image_labels_path)
-        return self.model.evaluate(data, steps=steps, verbose=True)
+        return self.model.evaluate(data, steps=steps, verbose=verbose)
 
     def predict(self, images_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], images_to_print=0,
                 verbose=True):
-        data = self._LFWDataLoader.init_tensor_data(data, images_labels_path=images_labels_path, norm=norm, _resize=_resize, batch_size=1)
+        data = LFWDataLoader.init_tensor_data(data, images_labels_path=images_labels_path, norm=norm, _resize=_resize, batch_size=1)
         if steps is None:
             steps = len(images_labels_path)
         preds = np.squeeze(self.model.predict(data, steps=steps, verbose=verbose))
@@ -308,7 +304,7 @@ class SiameseModel:
                      tensorboard_hist_freq=1, random_seed=42):
         seed(random_seed)
         set_seed(random_seed)
-        _, train_time = self.fit(train_paths_labels=train_paths_labels, val_paths_labels=val_paths_labels,
+        _, train_time, history = self.fit(train_paths_labels=train_paths_labels, val_paths_labels=val_paths_labels,
                                  table=fit_table,
                                  _resize=_resize, norm=norm, batch_size=batch_size, epochs=epochs,
                                  verbose=verbose, train_data=train_data, validation_data=validation_data,
@@ -316,6 +312,7 @@ class SiameseModel:
                                  steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, prefix=prefix,
                                  patience=patience,
                                  tensorboard_hist_freq=tensorboard_hist_freq)
+
         test_scores = self.evaluate(image_labels_path=test_paths_labels, norm=norm, _resize=_resize, verbose=verbose)
         val_scores = self.evaluate(image_labels_path=val_paths_labels, norm=norm, _resize=_resize, verbose=verbose)
 
@@ -325,4 +322,4 @@ class SiameseModel:
                 + [val_scores[0]] + [f'{s * 100:.2f}%' for s in val_scores[1:]])
             print(eval_table)
 
-        return val_scores[1]
+        return val_scores[1], history
