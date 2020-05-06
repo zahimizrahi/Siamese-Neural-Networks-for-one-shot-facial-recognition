@@ -83,7 +83,7 @@ def prepare_tensor_dataset(tensor_data, batch_size, buffer_size):
         tensor_data = tensor_data.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
         return tensor_data
 
-def init_tensor_data(tensor_data, images_labels_path, norm=None, _resize=None, batch_size=1, buffer_size=None,verbose=True):
+def init_tensor_data(tensor_data, images_labels_path, norm=None, _resize=None, batch_size=1, buffer_size=None,verbose=False):
         """
         initializing the tensor dataset
         :param tensor_data: the dataset
