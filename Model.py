@@ -145,7 +145,7 @@ class SiameseModel:
 
         # Third Layer
         model.add(Conv2D(
-            filters=filter_size * 4,
+            filters=filter_size * 2,
             kernel_size=kernel_sizes[2],
             activation='relu',
             kernel_initializer=kernel_init,
@@ -158,7 +158,7 @@ class SiameseModel:
 
         # Fourth Layer
         model.add(Conv2D(
-            filters=(filter_size * 8),
+            filters=(filter_size * 4),
             kernel_size=kernel_sizes[3],
             activation='relu',
             kernel_initializer=initialize_weights,
