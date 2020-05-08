@@ -1,22 +1,21 @@
-import time
 import numpy as np
 import time
 import datetime
 from tensorflow.keras.layers import Conv2D, Input, MaxPooling2D, Lambda, Flatten, Dense
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras import backend as K
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 from tensorflow.keras.metrics import Precision, Recall
 from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ModelCheckpoint
 from tensorboard.plugins.hparams import api as hyper
 from tensorflow.random import set_seed
 from numpy.random import seed
+from  distanceFunc  import abs_distance
+import LFWDataLoader
 from skimage.transform import resize
 from skimage import io
 import matplotlib.pyplot as plt
-from utils import get_image_name, init_tensor_data, abs_distance
-
+from utils import get_image_name
 
 def initialize_bias(shape, name=None, dtype=None):
     """
@@ -125,11 +124,11 @@ class SiameseModel:
             activation='relu',
             input_shape=input_shape,
             kernel_initializer=kernel_init,
-            kernel_regularizer=kernel_reg
+            kernel_regularizer=kernel_reg,
+            name='Conv1'
         )
         )
         model.add(MaxPooling2D())
-
 
         # Second Layer
         model.add(Conv2D(
@@ -138,7 +137,8 @@ class SiameseModel:
             activation='relu',
             kernel_initializer=kernel_init,
             kernel_regularizer=kernel_reg,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Conv2'
         )
         )
         model.add(MaxPooling2D())
@@ -150,7 +150,8 @@ class SiameseModel:
             activation='relu',
             kernel_initializer=kernel_init,
             kernel_regularizer=kernel_reg,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Conv3'
         )
         )
         model.add(MaxPooling2D())
@@ -162,9 +163,9 @@ class SiameseModel:
             activation='relu',
             kernel_initializer=initialize_weights,
             kernel_regularizer=kernel_reg,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Conv4'
         ))
-
 
          # Dense Layer
         model.add(Flatten())
@@ -174,7 +175,8 @@ class SiameseModel:
             activation=activation_predict,
             kernel_initializer=kernel_init_dense,
             kernel_regularizer=kernel_reg_dense,
-            bias_initializer=bias_init
+            bias_initializer=bias_init,
+            name='Dense1'
         )
         )
 
@@ -186,11 +188,9 @@ class SiameseModel:
 
         # add a dense layer with sigmoid as activation to generate the similarity score
         prediction = Dense(1, activation=activation_predict, bias_initializer=bias_init)(distance_func)
-        # prediction = distance_func
 
         siamese_model = Model(inputs=[left_image, right_image], outputs=prediction)
         siamese_model.compile(optimizer=self.optimizer, loss=loss, metrics=metrics)
-        # siamese_model.summary()
 
         if self.pretrained_weights:
             siamese_model.load_weights(pretrained_weights)
@@ -198,17 +198,15 @@ class SiameseModel:
         self.model = siamese_model
 
     def fit(self, train_paths_labels, val_paths_labels, table=None, _resize=[250, 250],
-            norm=255.0, batch_size=128, epochs=30, verbose=True, train_data=None, validation_data=None,
+            norm=255.0, batch_size=128, epochs=30, verbose=False, train_data=None, validation_data=None,
             callbacks=None, steps_per_epoch=None, validation_steps=None, hparam=None, prefix='', patience=3,
             tensorboard_hist_freq=1):
         start_time = time.time()
-        #self.input_shape = (_resize[0], _resize[1], 1)
         start_runtime = datetime.datetime.now().strftime('%m%d-%H%M%S')
         log_name = f'{prefix}_{start_runtime}_shape{_resize[0]}_batch{batch_size}_epochs{epochs}_lr{self.lr}'
         log_paths = f'fit_logs/{log_name}'
 
         if table is not None:
-            # table = PrettyTable['Start_Runtime', 'Name', 'Resize', 'Epochs', 'Units', 'Num_Filters', 'Optimizer', 'LR', 'Batch Size'])
             if hparam is not None:
                 table.add_row(
                     [start_runtime, log_name, _resize[0], epochs] + [hparam[param] for param in hparam])
@@ -226,10 +224,8 @@ class SiameseModel:
         print(f'Steps per epoch: {steps_per_epoch}')
         print(f'Validation Steps:{validation_steps}')
 
-        train_data = init_tensor_data(train_data, images_labels_path=train_paths_labels, norm=norm, _resize=_resize,
-                                      batch_size=batch_size, verbose=verbose)
-        validation_data = init_tensor_data(validation_data, images_labels_path=val_paths_labels, norm=norm,
-                                           _resize=_resize, batch_size=batch_size, verbose=verbose)
+        train_data = LFWDataLoader.init_tensor_data(train_data, images_labels_path=train_paths_labels, norm=norm, _resize=_resize,batch_size=batch_size, verbose=verbose)
+        validation_data = LFWDataLoader.init_tensor_data(validation_data, images_labels_path=val_paths_labels, norm=norm,_resize=_resize, batch_size=batch_size, verbose=verbose)
         if self.pretrained_weights is None:
             if callbacks is None:
                 callbacks = []
@@ -238,8 +234,8 @@ class SiameseModel:
                 log_dir=log_paths,
                 histogram_freq=tensorboard_hist_freq,
             )
-            early_stop = EarlyStopping(patience=patience, verbose=verbose)
-            mc = ModelCheckpoint(f'{log_name}.h5', verbose=0, save_best_only=True, save_weights_only=True)
+            early_stop = EarlyStopping(patience=patience, verbose=0, monitor='val_loss',restore_best_weights=True)
+            mc = ModelCheckpoint(f'{log_name}.h5', verbose=0, save_best_only=True)
 
             callbacks.append(tb_callback)
             callbacks.append(early_stop)
@@ -247,30 +243,25 @@ class SiameseModel:
 
             if hparam is not None:
                 callbacks.append(hyper.KerasCallback(log_paths, hparam))
-
-            self.model.fit(train_data, epochs=epochs, verbose=verbose, callbacks=callbacks,
-                           validation_data=validation_data, steps_per_epoch=steps_per_epoch,
-                           validation_steps=validation_steps)
-
-            # model.save_weights(f'{log_name}.h5')
+            history = self.model.fit(train_data, epochs=epochs, verbose=verbose, callbacks=callbacks,\
+                           validation_data=validation_data, steps_per_epoch=steps_per_epoch,\
+                           validation_steps=validation_steps, shuffle=True)
         train_time = time.time() - start_time
         print(f'############## {train_time:.2f} seconds! ##############')
-        return table, train_time
+        return table, train_time,history
 
-    def evaluate(self, image_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], verbose=True):
-        data = init_tensor_data(data, images_labels_path=image_labels_path, norm=norm, _resize=_resize, batch_size=1)
+    def evaluate(self, image_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], verbose=False):
+        data = LFWDataLoader.init_tensor_data(data, images_labels_path=image_labels_path, norm=norm, _resize=_resize)
         if steps is None:
             steps = len(image_labels_path)
-        return self.model.evaluate(data, steps=steps, verbose=True)
+        return self.model.evaluate(data, steps=steps, verbose=verbose)
 
-    def predict(self, images_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], images_to_print=0,
-                verbose=True):
-        data = init_tensor_data(data, images_labels_path=images_labels_path, norm=norm, _resize=_resize, batch_size=1)
+    def predict(self, images_labels_path, data=None, steps=None, norm=255.0, _resize=[250, 250], images_to_print=0,verbose=False):
+        data = LFWDataLoader.init_tensor_data(data, images_labels_path=images_labels_path, norm=norm, _resize=_resize, batch_size=1)
         if steps is None:
             steps = len(images_labels_path)
         preds = np.squeeze(self.model.predict(data, steps=steps, verbose=verbose))
         print(f'Shape of prediction verctor: {preds.shape}')
-
         split = 1
         num_of_split = 2
         plt.figure(figsize=(num_of_split * 4, images_to_print * 4))
@@ -297,14 +288,14 @@ class SiameseModel:
         return preds
 
     def fit_evaluate(self, train_paths_labels, val_paths_labels, test_paths_labels, fit_table=None, eval_table=None,
-                     _resize=[250, 250], norm=255.0, batch_size=128, epochs=30, verbose=True,
+                     _resize=[250, 250], norm=255.0, batch_size=128, epochs=30, verbose=False,
                      train_data=None,
                      validation_data=None,
                      callbacks=None, steps_per_epoch=None, validation_steps=None, prefix='', patience=3,
                      tensorboard_hist_freq=1, random_seed=42):
         seed(random_seed)
         set_seed(random_seed)
-        _, train_time = self.fit(train_paths_labels=train_paths_labels, val_paths_labels=val_paths_labels,
+        _, train_time, history = self.fit(train_paths_labels=train_paths_labels, val_paths_labels=val_paths_labels,
                                  table=fit_table,
                                  _resize=_resize, norm=norm, batch_size=batch_size, epochs=epochs,
                                  verbose=verbose, train_data=train_data, validation_data=validation_data,
@@ -312,6 +303,7 @@ class SiameseModel:
                                  steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, prefix=prefix,
                                  patience=patience,
                                  tensorboard_hist_freq=tensorboard_hist_freq)
+
         test_scores = self.evaluate(image_labels_path=test_paths_labels, norm=norm, _resize=_resize, verbose=verbose)
         val_scores = self.evaluate(image_labels_path=val_paths_labels, norm=norm, _resize=_resize, verbose=verbose)
 
@@ -321,4 +313,4 @@ class SiameseModel:
                 + [val_scores[0]] + [f'{s * 100:.2f}%' for s in val_scores[1:]])
             print(eval_table)
 
-        return val_scores[1]
+        return val_scores[1], history
