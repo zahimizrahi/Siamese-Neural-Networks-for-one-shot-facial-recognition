@@ -22,31 +22,54 @@ TEST_DST_PATH = 'data/test/'
 UNUSED_DST_PATH = 'data/etc/'
 
 def plotRun(history):
-        fig, axes = plt.subplots(1, 2)
-        fig.set_figheight(7)
-        fig.set_figwidth(14)
+    """
+    plot the loss and the accuracy of specific running
+    :param history: dictionary of run result
+    :return:
+    """
+    fig, axes = plt.subplots(1, 2)
+    fig.set_figheight(7)
+    fig.set_figwidth(14)
 
-        # plot accuracy
-        axes[0].plot(history.history['accuracy'])
-        axes[0].plot(history.history['val_accuracy'])
-        axes[0].set_title('model accuracy during training')
-        axes[0].set_ylabel('accuracy')
-        axes[0].set_xlabel('epoch')
-        axes[0].legend(['training', 'validation'], loc='best')
+    # plot accuracy
+    axes[0].plot(history.history['accuracy'])
+    axes[0].plot(history.history['val_accuracy'])
+    axes[0].set_title('model accuracy during training')
+    axes[0].set_ylabel('accuracy')
+    axes[0].set_xlabel('epoch')
+    axes[0].legend(['training', 'validation'], loc='best')
 
-        # plot loss
-        axes[1].plot(history.history['loss'])
-        axes[1].plot(history.history['val_loss'])
-        axes[1].set_title('loss during training')
-        axes[1].set_ylabel('loss')
-        axes[1].set_xlabel('epoch')
-        axes[1].legend(['training', 'validation'], loc='best')
+    # plot loss
+    axes[1].plot(history.history['loss'])
+    axes[1].plot(history.history['val_loss'])
+    axes[1].set_title('loss during training')
+    axes[1].set_ylabel('loss')
+    axes[1].set_xlabel('epoch')
+    axes[1].legend(['training', 'validation'], loc='best')
 
 def run_hyper_params(train_total_split,val_total_split,test_paths, running_dir, hparams, prefix, table=None, eval_table=None,
                      verbose=False, kernel_initializer=initialize_weights,
                      distance=abs_distance, distance_output_shape=None,
                      loss='binary_crossentropy', metrics=['accuracy'],
                      epochs=100):
+    """
+    :param train_total_split: pairs of train data path and label
+    :param val_total_split: pairs of validation data path and label
+    :param test_paths: pairs of test data path and label
+    :param running_dir: log dir
+    :param hparams: Running hyper parameters (tensorboard.plugins.hparams)
+    :param prefix:
+    :param table: output table params - type: prettyTable
+    :param eval_table: output table result - type: prettyTable
+    :param verbose:
+    :param kernel_initializer:
+    :param distance: distance option for the model ( default abs_distance)
+    :param distance_output_shape: default None
+    :param loss: los definition to the model. default binary_crossentropy
+    :param metrics: default accuracy
+    :param epochs: number of epoch. default 100
+    :return:
+    """
 
     with tf.summary.create_file_writer(running_dir).as_default():
         hyper.hparams(hparams)  # record the values used in this trial
@@ -131,7 +154,6 @@ def main():
             for optimizer in OPTIMIZER_PARAM.domain.values:
                 for lr in LR_PARAM.domain.values:
                     for batch_size in BATCH_SIZE_PARAM.domain.values:
-                        #           for dropout_rate in HP_DROPOUT.domain.values:
                         hparams = {
                             UNITS_PARAM: num_units,
                             NUM_FILTERS_PARAM: filters,

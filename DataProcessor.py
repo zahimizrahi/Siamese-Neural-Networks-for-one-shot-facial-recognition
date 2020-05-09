@@ -10,9 +10,13 @@ class DataProcessor:
                  train_file_path, test_file_path, verbose=False):
         """
         Constructor of DataProcessor.
-        :param data_path:
-        :param label_file:
-        :param print_imgs:
+        :param src_path: source path
+        :param train_dst_path: path destination to move the train data
+        :param test_dst_path: path destination to move the test data
+        :param unused_dst_path: path destination to move the unused data
+        :param train_file_path: train path pairs
+        :param test_file_path: test path pairs
+        :param verbose:
         """
         self.src_path = src_path
         self.train_dst_path = train_dst_path
