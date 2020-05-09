@@ -1,7 +1,7 @@
 import numpy as np
 import time
 import datetime
-from tensorflow.keras.layers import Conv2D, Input, MaxPooling2D, Lambda, Flatten, Dense
+from tensorflow.keras.layers import Conv2D, Input, MaxPooling2D, Lambda, Flatten, Dense, Dropout
 from tensorflow.keras.models import Sequential, Model, load_model
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop
@@ -58,7 +58,7 @@ class SiameseModel:
                  kernel_sizes=[(10, 10), (7, 7), (4, 4), (4, 4)], units=4 * 64, optimizer='adam', lr=3e-4,
                  loss='binary_crossentropy', metrics=['accuracy', Precision(name='Precision'), Recall(name='Recall')],
                  pretrained_weights=None, model_path=None, distance=abs_distance, distance_output_shape=None,
-                 activation_predict='sigmoid'):
+                 activation_predict='sigmoid', dropout = []):
         """
         implement the siamese model as defined in the article - Siamese Neural Network for One-Shot Image Recognition
         :param input_shape: the shape of the images
@@ -142,6 +142,8 @@ class SiameseModel:
         )
         )
         model.add(MaxPooling2D())
+        if len(dropout) > 0:
+            model.add(Dropout(dropout[0]))
 
         # Third Layer
         model.add(Conv2D(
@@ -167,9 +169,10 @@ class SiameseModel:
             name='Conv4'
         ))
 
+        if len(dropout) > 1:
+            model.add(Dropout(dropout[1]))
          # Dense Layer
         model.add(Flatten())
-
         model.add(Dense(
             units=units,
             activation=activation_predict,
@@ -185,7 +188,6 @@ class SiameseModel:
 
         # add a customized layer to compute the absolute distances between the left and right encodings
         distance_func = Lambda(distance, distance_output_shape)([encoded_left, encoded_right])
-
         # add a dense layer with sigmoid as activation to generate the similarity score
         prediction = Dense(1, activation=activation_predict, bias_initializer=bias_init)(distance_func)
 
