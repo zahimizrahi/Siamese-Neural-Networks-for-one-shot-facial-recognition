@@ -1,6 +1,19 @@
+import tensorflow as tf
+from tensorboard.plugins.hparams import api as hyper
+from numpy.random import seed
+from tensorflow.random import set_seed
+SEED = 42
+seed(SEED)
+set_seed(SEED)
+from Model import initialize_weights
+from distanceFunc import abs_distance
+from prettytable import MSWORD_FRIENDLY
+import matplotlib.pyplot as plt
+from Model import SiameseModel
 from DataProcessor import *
 from utils import *
 from prettytable import PrettyTable
+
 TRAIN_FILEPATH = 'pairsDevTrain.txt'
 TEST_FILEPATH = 'pairsDevTest.txt'
 SOURCE_PATH = 'lfw2/lfw2'
@@ -8,12 +21,64 @@ TRAIN_DST_PATH = 'data/train/'
 TEST_DST_PATH = 'data/test/'
 UNUSED_DST_PATH = 'data/etc/'
 
+def plotRun(history):
+        fig, axes = plt.subplots(1, 2)
+        fig.set_figheight(7)
+        fig.set_figwidth(14)
+
+        # plot accuracy
+        axes[0].plot(history.history['accuracy'])
+        axes[0].plot(history.history['val_accuracy'])
+        axes[0].set_title('model accuracy during training')
+        axes[0].set_ylabel('accuracy')
+        axes[0].set_xlabel('epoch')
+        axes[0].legend(['training', 'validation'], loc='best')
+
+        # plot loss
+        axes[1].plot(history.history['loss'])
+        axes[1].plot(history.history['val_loss'])
+        axes[1].set_title('loss during training')
+        axes[1].set_ylabel('loss')
+        axes[1].set_xlabel('epoch')
+        axes[1].legend(['training', 'validation'], loc='best')
+
+def run_hyper_params(train_total_split,val_total_split,test_paths, running_dir, hparams, prefix, table=None, eval_table=None,
+                     verbose=False, kernel_initializer=initialize_weights,
+                     distance=abs_distance, distance_output_shape=None,
+                     loss='binary_crossentropy', metrics=['accuracy'],
+                     epochs=100):
+
+    with tf.summary.create_file_writer(running_dir).as_default():
+        hyper.hparams(hparams)  # record the values used in this trial
+        siamese_model = SiameseModel(filter_size=hparams[hyper.NUM_FILTERS_PARAM],
+                                     units=hparams[hyper.UNITS_PARAM],
+                                     input_shape=(105, 105, 1),
+                                     distance=distance,
+                                     distance_output_shape=distance_output_shape,
+                                     loss=loss,
+                                     metrics=metrics,
+                                     optimizer=hparams[hyper.OPTIMIZER_PARAM],
+                                     lr=hparams[hyper.LR_PARAM] * 1e-4)
+
+        accuracy, history = siamese_model.fit_evaluate(train_paths_labels=train_total_split,
+                                                       val_paths_labels=val_total_split,
+                                                       test_paths_labels=test_paths,
+                                                       fit_table=table,
+                                                       eval_table=eval_table,
+                                                       _resize=[105, 105],
+                                                       batch_size = 64,
+                                                       epochs=epochs,
+                                                       verbose=verbose,
+                                                       prefix=prefix,
+                                                       callbacks=[hyper.KerasCallback(running_dir, hparams)]
+                                                       )
+        tf.summary.scalar(metrics, accuracy, step=1)
+        return history
 
 def main():
-    prepare_data()
-    train_paths = DataProcessor(TRAIN_DST_PATH, TRAIN_FILEPATH, False).load_data()
-    test_paths = DataProcessor(TEST_DST_PATH, TEST_FILEPATH, False).load_data()
-
+    dataProcessor = DataProcessor(SOURCE_PATH, TRAIN_DST_PATH, TEST_DST_PATH, UNUSED_DST_PATH, TRAIN_FILEPATH,TEST_FILEPATH)
+    dataProcessor.prepare_data()
+    train_paths, test_paths = dataProcessor.load_data()
     """
     Splitting to train and Val
     Needs to explain why the seperation is good.
@@ -23,31 +88,6 @@ def main():
     Therefore, we explore seperating the sets based on the person's name, to guarantee that the sets are independent.
      But we can't also do it by person's name since a name can appear in different pairs. 
     """
-    train_same = [get_image_name(p[0]) for p in train_paths[:1100]]
-    train_diff = [get_image_name(p[0]) for p in train_paths[1100:]]
-
-    # First, let's check distribution of each letter / person
-    h_same = get_histogram_of_letters(train_same, 1)
-    h_diff = get_histogram_of_letters(train_diff, 1)
-
-    t = PrettyTable([''] + list(h_same.keys()))
-    t.add_row(['Same'] + list(h_same.values()))
-    t.add_row(['Different'] + list(h_diff.values()))
-    print(t)
-    print()
-
-    letters_selected_same = h_same['J'] + h_same['K'] + h_same['L']
-    letters_selected_different = h_diff['J'] + h_diff['K'] + h_diff['L']
-
-    t = PrettyTable(['', 'Total Size', 'Chosen Letters', 'Chosen Letters Size', 'Percentage'])
-    t.add_row(['Same', sum(h_same.values()), 'J,K,L', letters_selected_same,
-               f'{letters_selected_same / len(train_same) * 100:.2f}%'])
-    t.add_row(['Different', sum(h_diff.values()), 'J,K,L', letters_selected_different,
-               f'{letters_selected_different / len(train_diff) * 100:.2f}%'])
-    t.add_row(
-        ['All', sum(h_same.values()) + sum(h_diff.values()), 'A-Z', letters_selected_same + letters_selected_different,
-         f'{(letters_selected_same + letters_selected_different) / (len(train_same) + len(train_diff)) * 100:.2f}%'])
-    print(t)
 
     train_same_paths, val_same_paths = split_data_by_letters(train_paths[:1100], letters='JKL')
     train_diff_paths, val_diff_paths = split_data_by_letters(train_paths[1100:], letters='JKL')
@@ -55,22 +95,65 @@ def main():
     train_total_split = train_same_paths + train_diff_paths
     val_total_split = val_same_paths + val_diff_paths
 
-    t = PrettyTable(['', 'Size', 'Percentage'])
-    t.add_row(['Train Same', f'{len(train_same_paths)}/{len(train_paths)}',
-               f'{len(train_same_paths) / len(train_paths) * 100:.2f}%'])
-    t.add_row(['Train Different', f'{len(train_diff_paths)}/{len(train_paths)}',
-               f'{len(train_diff_paths) / len(train_paths) * 100:.2f}%'])
-    t.add_row(['Train', f'{len(train_total_split)}/{len(train_paths)}',
-               f'{len(train_total_split) / len(train_paths) * 100:.2f}%'])
-    t.add_row(['', '', ''])
-    t.add_row(['Validation Same', f'{len(val_same_paths)}/{len(train_paths)}',
-               f'{len(val_same_paths) / len(train_paths) * 100:.2f}%'])
-    t.add_row(['Validation Different', f'{len(val_diff_paths)}/{len(train_paths)}',
-               f'{len(val_diff_paths) / len(train_paths) * 100:.2f}%'])
-    t.add_row(['Validation', f'{len(val_total_split)}/{len(train_paths)}',
-               f'{len(val_total_split) / len(train_paths) * 100:.2f}%'])
-    print(t)
+    UNITS_PARAM = hyper.HParam('units', hyper.Discrete([512, 4096]))
+    NUM_FILTERS_PARAM = hyper.HParam('filter_size', hyper.Discrete([64]))
+    BATCH_SIZE_PARAM = hyper.HParam('batch_size', hyper.Discrete([32]))
+    OPTIMIZER_PARAM = hyper.HParam('optimizer', hyper.Discrete(['adam']))
+    LR_PARAM = hyper.HParam('lr', hyper.Discrete([1]))
+    METRIC_ACCURACY = 'accuracy'
 
+    with tf.summary.create_file_writer('fit_logs/hparam_tuning').as_default():
+        hyper.hparams_config(
+            hparams=[
+                UNITS_PARAM,
+                NUM_FILTERS_PARAM,
+                BATCH_SIZE_PARAM,
+                OPTIMIZER_PARAM,
+                LR_PARAM
+            ],
+            metrics=[
+                hyper.Metric(METRIC_ACCURACY, display_name='Accuracy'),
+            ],
+        )
+    session_num = 3
+    model_table = PrettyTable(
+        ['Start_Runtime', 'Name', 'Resize', 'Epochs', 'Units', 'Filters', 'Batch Size', 'Optimizer', 'LR'])
+    model_table.set_style(MSWORD_FRIENDLY)
+    eval_table = PrettyTable([
+        'Name',
+        'Train_Time', 'Test_Loss', 'Test_Accuracy',
+        'Val_Loss', 'Val_Accuracy'
+    ])
+    eval_table.set_style(MSWORD_FRIENDLY)
+
+    for num_units in UNITS_PARAM.domain.values:
+        for filters in NUM_FILTERS_PARAM.domain.values:
+            for optimizer in OPTIMIZER_PARAM.domain.values:
+                for lr in LR_PARAM.domain.values:
+                    for batch_size in BATCH_SIZE_PARAM.domain.values:
+                        #           for dropout_rate in HP_DROPOUT.domain.values:
+                        hparams = {
+                            UNITS_PARAM: num_units,
+                            NUM_FILTERS_PARAM: filters,
+                            BATCH_SIZE_PARAM: batch_size,
+                            OPTIMIZER_PARAM: optimizer,
+                            LR_PARAM: lr
+                        }
+                        run_title = f'Run_{session_num}'
+                        print(f'--- Starting Running: {run_title} --- ')
+                        print({h.name: hparams[h] for h in hparams})
+                        history = run_hyper_params(
+                            train_total_split, val_total_split, test_paths,
+                            running_dir=f'fit_logs/hparam_tuning/{run_title}',
+                            hparams=hparams,
+                            prefix=f'hparam_{session_num}_all',
+                            table=model_table,
+                            eval_table=eval_table,
+                            epochs=110,
+                            verbose=True
+                        )
+                        session_num = session_num + 1
+                        plotRun(history)
 
 if __name__ == "__main__":
     main()
